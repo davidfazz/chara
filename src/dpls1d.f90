@@ -213,17 +213,19 @@ contains
       p_maxd = 1.d15
     endif
 
-! oblique lattice structures:
+! parallelogram:
+! spanned by two vectors: (1,0) and (cos(p_alpha),sin(p_alpha));
 
     isp = 0
     if (trim(p_lattice) .eq. 'pargram') then
       do ix=0,p_nx-1
         do iy=0,p_ny-1
           isp = isp + 1
+          p_ens(isp)%xyz(1) = dble(ix)*p_omega + dble(iy)*p_kappa*cos(p_alpha) &   
+                            + p_omega/2.d0 + p_kappa/2.d0*cos(p_alpha)
+          p_ens(isp)%xyz(2) = dble(iy)*p_kappa*sin(p_alpha) &
+                            + p_kappa/2.d0*sin(p_alpha)
           p_ens(isp)%xyz(3) = 0.d0
-          p_ens(isp)%xyz(2) = (dble(iy) + 0.5d0) * p_kappa * sin(p_alpha)
-          p_ens(isp)%xyz(1) = (dble(ix) + 0.5d0) * p_omega &
-                            + p_ens(isp)%xyz(2) * cos(p_alpha)
         enddo
       enddo
 
@@ -317,30 +319,36 @@ contains
           endif
         enddo
 
-! we calculate the force acting on a particle from collisions with the left and 
-! right unit cell boundaries:
+! we calculate the force acting on a particle from collisions with the unit cell 
+! boundaries. the unit cell is bounded by the four vectors:
+! > (x,0); (x,xtan a); (x,dy); (x+dx,xtan a);
 
         rvec = p_ens(i)%xyz 
-        if (rvec(1) .lt. p_ens(i)%r + rvec(2)*cos(p_alpha)) then
-          xgrd(pi+1) = xgrd(pi+1) + 1.d0 
+
+! vertical check;
+
+        if (rvec(2) .lt. p_ens(i)%r) then
+          xgrd(pi+2) = xgrd(pi+2) + 1.d0 
           update = .true.
-        elseif (rvec(1) .gt. dx + rvec(2)*cos(p_alpha) - p_ens(i)%r) then 
-          xgrd(pi+1) = xgrd(pi+1) - 1.d0
+        elseif (rvec(2) + p_ens(i)%r .gt. dy) then
+          xgrd(pi+2) = xgrd(pi+2) - 1.d0
+          update = .true.
+        endif
+
+! horizontal check;
+
+        if (abs(rvec(1)*sin(p_alpha) - rvec(2)*cos(p_alpha)) .lt. p_ens(i)%r) then
+          xgrd(pi+1:pi+3) = xgrd(pi+1:pi+3) + [ sin(p_alpha),-cos(p_alpha), 0.d0]
+          update = .true.
+        elseif (abs(rvec(1)*sin(p_alpha) - rvec(2)*cos(p_alpha) - dx*sin(p_alpha)) &
+               .lt. p_ens(i)%r) then
+          xgrd(pi+1:pi+3) = xgrd(pi+1:pi+3) - [ sin(p_alpha),-cos(p_alpha), 0.d0]
           update = .true.
         endif
 
 ! colissions with the top and bottom unit cell boundaries:
         
-        if (rvec(2) .lt. p_ens(i)%r) then
-          xgrd(pi+2) = xgrd(pi+2) + 1.d0
-          update = .true.
-        elseif (rvec(2) .gt. dy - p_ens(i)%r) then
-          xgrd(pi+2) = xgrd(pi+2) - 1.d0 
-          update = .true.
-        endif
       enddo
-
-     ! print *,k,xgrd(1:10)
 
       if (update) then
         do i=1,c_p 
